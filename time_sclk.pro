@@ -1,6 +1,7 @@
 FUNCTION time_sclk,t1,t2,t3,hh,mm,ss,JULIAN_TO_SCLK=julian_to_sclk,MJD_TO_SCLK=mjd_to_sclk,DAY_TIME_TO_SCLK=day_time_to_sclk,$
                                      SCLK_TO_JULIAN=sclk_to_julian,SCLK_TO_MJD=sclk_to_mjd,SCLK_TO_DAY_TIME=sclk_to_day_time,$
-                                     MJD_TO_DAY_TIME=mjd_to_day_time,DAY_TIME_TO_MJD=day_time_to_mjd
+                                     MJD_TO_DAY_TIME=mjd_to_day_time,DAY_TIME_TO_MJD=day_time_to_mjd,JULIAN_TO_DAY_TIME=julian_to_day_time,$
+                                     DAY_TIME_TO_JULIAN=day_time_to_julian
 ;;
 ;; Convert between various time systems and Spitzer Spacecraft Clock (SCLK).  Inputs can be a scalar or vector of values.  Output will
 ;; have the same number of values.
@@ -21,6 +22,9 @@ FUNCTION time_sclk,t1,t2,t3,hh,mm,ss,JULIAN_TO_SCLK=julian_to_sclk,MJD_TO_SCLK=m
 ;     /DAY_TIME_TO_MJD: t1,t2,t3 is the month (number), day, year and hh,mm,ss, is the time (hours:minutes:seconds), in UTC.
 ;                        Return the modified julian date.
 ;     /MJD_TO_DAY_TIME: t1 is a modified Julian date.  Return the UTC day and time as an array containing [month (number), day, year, hour, minutes, seconds]
+;     /JULIAN_TO_DAY_TIME: t1 is a pure Julian date.  Return the UTC day and time as an array containing [month (number), day, year, hour, minutes, seconds]
+;     /DAY_TIME_TO_JULIAN: t1,t2,t3 is the month (number), day, year and hh,mm,ss, is the time (hours:minutes:seconds), in UTC.
+;                        Return the Julian date.
 ;     
 ;Julian Day at SCLK=0
 julday_sclk0 = JULDAY(1,1,1980,0,0,0)
@@ -45,6 +49,11 @@ CASE 1 of
       julianday = t1 + julday_mjd0
       CALDAT,julianday,mon,day,yr,hr,minits,sec
       toutput = [[mon],[day],[yr],[hr],[minits],[sec]]
+   END
+   KEYWORD_SET(DAY_TIME_TO_JULIAN): toutput = JULDAY(t1,t2,t3,hh,mm,ss)
+   KEYWORD_SET(JULIAN_TO_DAY_TIME): BEGIN
+     CALDAT,t1,mon,day,yr,hr,minits,sec
+     toutput = [[mon],[day],[yr],[hr],[minits],[sec]]
    END
    ELSE: BEGIN
    ;; Date/time to sclk

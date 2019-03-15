@@ -1,4 +1,4 @@
-pro fbm1,npix,beta,seed,z,plot=plot,maxpix=maxpix
+pro fbm1,npix,beta,seed,z,plot=plot,maxpix=maxpix,_extra=extra
 ;; MAXPIX gives the size of the largest self-contained segment.  The output will be strung together from npix/maxpix (+ 1) 
 ;;        instances of the fbm noise.
 ; 
@@ -34,7 +34,9 @@ FOR i = 0LL,ninstance-1 DO BEGIN
 ;   IF i EQ 0 THEN i1 = 0LL ELSE i1 = LONG64(total(npix_inst[0:i-1],/INTEGER))
    amp = dblarr(np)
    amp[0] = 1.0
-   amp[1:*] = ABS(freq[1:*])^(-beta/2)
+   
+   amp[1:*] = ABS(freq[1:*])^(-beta/2); + gaussfunc(freq[1:*],.02,.02,10.0) + gaussfunc(freq[1:*],-.02,.02,10.0)
+  ;amp[1:*] = gaussfunc(freq[1:*],.02,.02,10.0); + gaussfunc(freq[1:*],-.02,.02,10.0)
 
    fourier_component = dcomplexarr(np) 
    fourier_component = amp * COMPLEX( cos(phi) , sin(phi) )
@@ -44,6 +46,6 @@ FOR i = 0LL,ninstance-1 DO BEGIN
 ENDFOR
 
 ;colorize
-IF KEYWORD_SET(PLOT) THEN cgplot,z,xstyle=1
+IF KEYWORD_SET(PLOT) THEN cgplot,z,xstyle=1,_extra=extra
 return
 end

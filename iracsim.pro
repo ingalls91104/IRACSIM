@@ -9,7 +9,7 @@ PRO iracsim,verbose=verbose,DURATION=duration,STARTDCENUM=STARTDCENUM,$
                  MULTITHREAD=multithread,DISTORTION=DISTORTION,SURFACE_BRIGHTNESS=SURFACE_BRIGHTNESS,DN=dn,$
                  OBJECT=object,POISSON_SEED=poisson_seed,READNOISE_SEED=readnoise_seed,POINTING_SEED=pointing_seed,$
                  NO_NOISE=no_noise,HEADER_COMMENTS=header_comments,SNR=snr,NO_PRECENTER=no_precenter,$
-                 NOISE_FACTOR=noise_factor,_EXTRA=extra
+                 NOISE_FACTOR=noise_factor,PRF_DIR=prf_dir,_EXTRA=extra
 ;;
 ;;  Simulate IRAC staring observations of one or more point sources.  Uses an IRAC PRF to realize point source images, with a realistic pointing model giving the fluctuations of
 ;;  position as a function of time.   Multiple source positions are specified in RA and DEC and will be placed according to the input correspondence between pixel and celestial coordinates
@@ -94,7 +94,8 @@ PRO iracsim,verbose=verbose,DURATION=duration,STARTDCENUM=STARTDCENUM,$
 ;;                          SPIKE_WIDTH: FWHM of excursion(s) (seconds) -- array of values (default: [0.05])
 ;;                           
 ;;   DT_SUBSAMPLE - The time resolution of the model (sec).  Default is 1/10 of a clock tick
-;;   PRF_FILE - path to prf table file.  Will use defaults for CH1/2 Full or subarray if not input.  
+;;   PRF_FILE - prf table file.  Will use defaults for CH1/2 Full or subarray if not input.  
+;;   PRF_DIR  - directory holding prf table file.  Will use defaults for cryogenic or warm mission if not input.
 ;;   MAXPRF - DN value at peak of PRF before scaling to star flux - defaults to 1.0 (shouldn't have to change this, but it's there in case we have to tweak the fluxes
 ;;   SCLK_START - The spacecraft clock time of the start of the AOR.  Default is the computer clock time at program's execution.
 ;;   GROUP_SCLK_START - The time at the start of a group of AORs which this is part of - this allows us to incorporate progressive or transient events that span multiple
@@ -157,8 +158,9 @@ IF N_ELEMENTS(NOISE_FACTOR) NE 0 THEN header_comments = [header_comments,'Noise 
   IF ~KEYWORD_SET(channel) THEN channel = 1
   IF KEYWORD_SET(WARM_MISSION) THEN BEGIN
     header_comments = [header_comments,'Simulation uses WARM PRFs']
+    iracprefix = 'IRACPC'
     ;prf_dir = './warm_prfs' 
-  ENDIF ;ELSE prf_dir = './070131_prfs'
+  ENDIF ELSE iracprefix = 'IRAC';ELSE prf_dir = './070131_prfs'
   IF KEYWORD_SET(NO_DISTORTION) THEN header_comments = [header_comments,'Distortion model turned OFF in simulation']
   IF KEYWORD_SET(NO_NOISE) THEN header_comments = [header_comments,'Detector noise turned OFF in simulation']
   IF ~KEYWORD_SET(framtime) THEN framtime='0.4'
@@ -170,7 +172,7 @@ IF N_ELEMENTS(NOISE_FACTOR) NE 0 THEN header_comments = [header_comments,'Noise 
      nx = 32
      ny = 32
  ;    IF ~keyword_set(prf_file) THEN prf_file = 'IRAC1_col025_row233.fits';'IRAC'+STRNG(channel)+'_col025_row233.fits'
-     IF ~keyword_set(prf_file) THEN prf_file = 'IRAC'+STRNG(channel)+'_col025_row233.fits'
+     IF ~keyword_set(prf_file) THEN prf_file = iracprefix+STRNG(channel)+'_col025_row233.fits'
      nsamp_clock = ROUND(clocktick/dt_subsample)
      SUB=1  
      framestring = framtime + 'S'   

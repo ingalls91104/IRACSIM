@@ -1,6 +1,6 @@
 FUNCTION prf_realize,channel,prf,x_prf,y_prf,xloc,yloc,dxstar=dxstar,dystar=dystar,flux=flux,nx=nx,ny=ny,$
-                     r_aper=r_aper,sky_annnulus=sky_annulus,no_normalize=no_normalize,factor=factor,$
-                     verbose=verbose,peak_star=peak_star,BG_IMAGE=bg_image,BG_VALUE=bg_value,prf_use=prf_use
+                     r_aper=r_aper,sky_annnulus=sky_annulus,no_normalize=no_normalize,factor=factor,linear=linear,$
+                     verbose=verbose,peak_star=peak_star,BG_IMAGE=bg_image,BG_VALUE=bg_value,prf_use=prf_use,WARM=WARM
 ;;;  Realize the image of a point source, given the following: 
 ;;;         CHANNEL: IRAC channel number (1 or 2)
 ;;;             PRF: the PRF table (or sets of tables for 5x5 positions around IRAC)
@@ -8,34 +8,43 @@ FUNCTION prf_realize,channel,prf,x_prf,y_prf,xloc,yloc,dxstar=dxstar,dystar=dyst
 ;;;                  is sampled, in units of the native pixel grid
 ;;;                  (defined such that x_prf,y_prf=0,0 at the position of the actual point source,
 ;;;                   which may not be an integer PRF pixel).  
-;;;                  This will be updated based on the PRF center positions tabulated herein.
+;;;                  This will be updated based on the PRF center positions tabulated in PRF_CHOOSE.
 ;;; (XLOC,YLOC): the requested baseline location(s) of the star centroid(s)
 ;;;                  in the native pixel grid.  If XLOC and YLOC
 ;;;                  are input as NIMG-long arrays, the function will return a
 ;;;                  set of NIMG images (3-dimensional array with 3rd index
 ;;;                  being image number), each of which gives a
 ;;;                  realization based on the given coordinates.
+;;;                  If multiple PRFs are input, each location (XLOC+DXSTAR,YLOC+DYSTAR)
+;;;                  will have its realization produced from an average of the
+;;;                  PRF set, weighted by distance. 
 ;;;  Optional keyword inputs are as follows:
-;;;   (DXSTAR,DYSTAR):  offset locations from XLOC,YLOC for each star (NSTAR elements) NOTE: the variable PRF does not
-;;;                     currently account for multiple stars
+;;;   (DXSTAR,DYSTAR):  offset locations from XLOC,YLOC for each star (NSTAR elements) 
 ;;;        BG_VALUE = A single background value that all pixels get
 ;;;        BG_IMAGE = An NX x NY image of values to give the pixels.  Supercedes BG_VALUE. 
 ;;;        PEAK_STAR:   peak value of prf for each star (NSTAR elements)
-;;;              NX,NY: the number of pixels in the output image(s).
-;;;                     Default is 256 x 256.
-;;;              FLUX:  the star flux(es) in a sky-subtracted aperture centered on
-;;;                     (xloc,yloc).  By default, the flux will be
-;;;                     set to 1.0 (the stellar realization will be
-;;;                     scaled by whatever factor gives this flux).  
-;;;              R_APER: Aperture radius.  Default is 5 pixels.
-;;;              SKY_ANNULUS: 2-element array giving the inner and
-;;;                           outer radii over which to compute
-;;;                           aperture photometry.  Default is [5,10]
-;;;              /NO_NORMALIZE: Don't normalize the flux
-;;;              FACTOR: multiply each realization by this number.  If given as an NIMG
-;;;                      array, multiply each realization by the corresponding element of FACTOR.
+;;;        NX,NY: the number of pixels in the output image(s).
+;;;               Default is 256 x 256.
+;;;        FLUX:  the star flux(es) in a sky-subtracted aperture centered on
+;;;               (xloc,yloc).  By default, the flux will be
+;;;               set to 1.0 (the stellar realization will be
+;;;               scaled by whatever factor gives this flux).  
+;;;        R_APER: Aperture radius.  Default is 5 pixels.
+;;;        SKY_ANNULUS: 2-element array giving the inner and
+;;;                     outer radii over which to compute
+;;;                     aperture photometry.  Default is [5,10]
+;;;        /NO_NORMALIZE: Don't normalize the flux
+;;;        FACTOR: multiply each realization by this number.  If given as an NIMG
+;;;                array, multiply each realization by the corresponding element of FACTOR.
+;;;        /LINEAR: use linear interpolation instead of cubic convolution to realize the stellar images
+;;;                 in between grid points.  
+;;;        /WARM:  set this if you are inputting multiple PRFs for the warm mission and will therefore use the tabulated centroids
+;;;                when calling PRF_CHOOSE  
 ;;;
 ;;; Ratio of distance in prf coordinates to the same distance in native pixel coordinates:
+;;;
+;;;   13 Jan 2017: add keyword /WARM.  Move PRF weighted averaging to function PRF_CHOOSE. Allow for separate weighted averaging of
+;;;                PRFs for each stellar realization.    
 delta_x_pix_prf = 1./(x_prf[1,0]-x_prf[0,0])
 delta_y_pix_prf = 1./(y_prf[0,1]-y_prf[0,0])
 
@@ -67,60 +76,6 @@ IF N_ELEMENTS(BG_IMAGE) NE 0 THEN bg_img = BG_IMAGE $
      ELSE BEGIN
        IF N_ELEMENTS(BG_VALUE) NE 0 THEN bg_img[*] = BG_VALUE
      ENDELSE 
-;; Deal with multiple PRF's
-sz = SIZE(prf)
-nx_prf = sz[1]
-ny_prf = sz[2]
-nprfs = sz[0] EQ 3 ? sz[3] : 1
-IF NPRFS GT 1 THEN BEGIN
-   prf_rowcol = [25,77,129,181,233] -1 
-   xave = MEAN(xloc + dxstar[0])
-   yave = MEAN(yloc + dystar[0])
-   dum = MIN(ABS(xave-prf_rowcol),i0)
-   IF i0 EQ 4 THEN i0=3
-   i1 = i0+1
-   dum = MIN(ABS(yave-prf_rowcol),j0)
-   IF j0 EQ 4 THEN j0=3
-   j1 = j0+1
-;; I checked these are very similar between warm and cold
-   CASE channel OF
-      1: BEGIN
-      ;CH1
-           prf_xcen = TRANSPOSE([ [64.9772,64.8530,64.8238,64.8502,64.9615],[64.6561,64.6596,64.6813,64.6414,64.6295],$
-                                  [64.4804,64.5032,64.5190,64.4824,64.4404],[64.3060,64.2781,64.2536,64.2623,64.2713],$
-                                  [64.1216,64.1126,64.0868,64.1009,64.0886] ])
-           prf_ycen = TRANSPOSE([ [64.2023,63.9157,63.6696,63.3958,63.0523],[64.0970,63.9045,63.6680,63.4136,63.1648],$
-                                  [64.0841,63.9514,63.6535,63.3601,63.1826],[64.0773,63.9507,63.6465,63.3461,63.1749],$
-                                  [64.0674,63.8812,63.6430,63.3926,63.1533] ])
-      END
-      2: BEGIN
-      ;CH2
-           prf_xcen = TRANSPOSE([ [62.9576,62.9114,63.9345,62.9312,62.9576],[62.6333,63.6674,62.7097,62.6926,62.6625],$
-                                [62.3564,62.3565,62.3573,62.3701,62.3878],[62.0746,62.0760,62.0496,62.0865,62.1259],$
-                                [61.7113,61.8171,61.8369,61.8444,61.7963] ])
-           prf_ycen = TRANSPOSE([ [64.2350,63.8873,63.5784,63.2649,62.9350],[64.1912,63.9294,63.5956,63.2360,62.9651],$
-                                  [64.1964,63.9520,63.6119,63.2258,62.9685],[64.2055,63.9242,63.6099,63.2687,62.9873],$
-                                  [64.2869,63.9169,63.6053,63.2966,62.9416] ])
-      END
-   ENDCASE
-   ;; Create the interpolation weights
-   a = (xave-prf_rowcol[i0])/(prf_rowcol[i1]-prf_rowcol[i0])
-   b = (yave-prf_rowcol[j0])/(prf_rowcol[j1]-prf_rowcol[j0])
-   c00 = 1 + a*(b-1) -b 
-   c01 = b*(1-a)
-   c10 = a*(1-b)
-   c11 = a*b
-   ;; Interpolate the center locations, and the PRF
-   xcen = prf_xcen[i0,j0]*c00 + prf_xcen[i0,j1]*c01 + prf_xcen[i1,j0]*c10 + prf_xcen[i1,j1]*c11
-   ycen = prf_ycen[i0,j0]*c00 + prf_ycen[i0,j1]*c01 + prf_ycen[i1,j0]*c10 + prf_ycen[i1,j1]*c11
-   prf1 = TRANSPOSE(REFORM(prf,nx_prf,ny_prf,5,5),[0,1,3,2])
-   prf_use = REFORM(prf1[*,*,i0,j0]*c00 + prf1[*,*,i0,j1]*c01 + prf1[*,*,i1,j0]*c10 + prf1[*,*,i1,j1]*c11) 
-   x_prf = ( (dindgen(nx_prf) - xcen)/delta_x_pix_prf ) # (fltarr(ny_prf) + 1.0)
-   y_prf =  (fltarr(nx_prf) + 1.0) # ( (dindgen(ny_prf) - ycen)/delta_y_pix_prf )
-ENDIF ELSE BEGIN
-   prf_use = prf
-ENDELSE
-
 
 ;;; Initialize the star images with the background.
 IF NIMG GT 1 THEN star_img = MAKE_ARRAY(nx,ny,nimg) ELSE star_img = MAKE_ARRAY(nx,ny)
@@ -133,10 +88,13 @@ maxprf = MAX(prf)
 ;;; centroid using interpolation.  For pixels outside the prf grid,
 ;;; set the star intensity to zero.
 ;;;
-IF KEYWORD_SET(VERBOSE) EQ 1 THEN print,'Making '+STRNG(nimg)+' star realizations'
+IF KEYWORD_SET(VERBOSE) EQ 1 THEN print,'Making '+STRNG(nimg)+' realizations'
 FOR I = 0,nimg-1 DO BEGIN
    IF KEYWORD_SET(VERBOSE) EQ 1 AND i mod 100 EQ 0 THEN print,'# '+STRNG(i)+'  ('+STRNG(xloc[i])+','+STRNG(yloc[i])+')'
    FOR J = 0,nstar-1 DO BEGIN
+      IF KEYWORD_SET(VERBOSE) EQ 1 and nstar GT 1 THEN  print,'   * '+STRNG(j)+'  ('+STRNG(xloc[i]+dxstar[j])+','+STRNG(yloc[i]+dystar[j])+'): '+STRNG(peak_star[j])
+      ;;; Choose the appropriate PRF for each stellar location (will be a single PRF for subarray)
+      prf_use = prf_choose(channel,prf,xloc[i]+dxstar[j],yloc[i]+dxstar[j],delta_x_pix_prf,delta_y_pix_prf,x_prf,y_prf,WARM=warm)
 ;;; Coordinates of each native pixel relative to the desired star position
       xgrid = findgen(nx) # (fltarr(ny) + 1.0) - xloc[i] - dxstar[j]
       ygrid = (fltarr(nx) + 1.0) # findgen(ny) - yloc[i] - dystar[j]
@@ -145,15 +103,13 @@ FOR I = 0,nimg-1 DO BEGIN
       ygrid_prf = (ygrid - y_prf[0]) * delta_y_pix_prf
 
 ;;; Individual Star realization.  
-;;; Sample PRF at the set of interpolated pixel positions (XGRID_PRF,YGRID_PRF), using cubic convolution:   
-     ;im = INTERPOLATE(PRF,XGRID_PRF,YGRID_PRF,CUBIC=-0.5,MISSING=0.0) * factor[i]
+;;; Sample PRF at the set of interpolated pixel positions (XGRID_PRF,YGRID_PRF), using cubic convolution or linear interpolation:   
      ;; Remove MISSING keyword to set a constant value (the value at the edge)
      ;; for pixels outside the sampled region.
-     im = INTERPOLATE(PRF_USE,XGRID_PRF,YGRID_PRF,MISSING=missing,CUBIC=-0.5) * factor[i]  ;; Turned off CUBIC=-0.5 for now to avoid possible use of multiple entries for the same phase JGI 4/16/14
+     ;; Set /LINEAR to turn off CUBIC=-0.5 and avoid possible use of multiple entries for the same phase
+     im = KEYWORD_SET(LINEAR) ? INTERPOLATE(PRF_USE,XGRID_PRF,YGRID_PRF,MISSING=missing) * factor[i] : $
+                                INTERPOLATE(PRF_USE,XGRID_PRF,YGRID_PRF,MISSING=missing,CUBIC=-0.5) * factor[i]  
 ;
-;;  Sample PRF at the set of interpolated pixel positions (XGRID_PRF,YGRID_PRF), using bilinear interpolation:
-   ;im = INTERPOLATE(PRF,XGRID_PRF,YGRID_PRF,MISSING=0.0) * factor[i]
-   
 ;;; Normalize image so that the flux is as required by aperture
 ;;; photometry 
       IF KEYWORD_SET(NO_NORMALIZE) EQ 0 THEN BEGIN
@@ -165,7 +121,7 @@ FOR I = 0,nimg-1 DO BEGIN
    ENDFOR   
 ENDFOR
 
-IF KEYWORD_SET(verbose) EQ 1 THEN PRINT,'Done making star realization'
+IF KEYWORD_SET(verbose) EQ 1 THEN PRINT,'Done making images'
 RETURN,star_img
 END
    
@@ -180,8 +136,12 @@ END
 ;      integrated over each pixel.  The benefit of interleaving is that it also allows us to 
 ;      interpolate the images conveniently between pixel phases.
 ;       
-;      The first thing to do is define a reference frame of the point source.  I define the "center" 
+;      The first thing to do is define a reference frame of the point source. 
+;      
+;      --> INCORRECT NO LONGER DO THIS I define the "center" 
 ;      of the PRF by doing a center-of-light centroid on the PRF itself, (falsely) treating it as an image.  
+;      
+;      
 ;      This defines the position (xcnt_prf,ycnt_prf) on the PRF grid of the "center" of a point source, 
 ;      which doesn't have to be an integer.  I then determine, in native IRAC array pixels, the 
 ;      coordinates of all other "pixels" of the PRF relative to that.  Basically, this tells us 

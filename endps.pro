@@ -60,7 +60,7 @@ IF KEYWORD_SET(nopost) EQ 0 AND post NE 0 THEN BEGIN
   ENDELSE
   print,'leaving ENDPS - DEVICE is '+mydevice
   set_plot,mydevice
-  IF MYDEVICE eq 'x' or MYDEVICE eq 'X' THEN device,decomposed=0
+;  IF MYDEVICE eq 'x' or MYDEVICE eq 'X' THEN device,decomposed=0
 ENDIF
 
 return

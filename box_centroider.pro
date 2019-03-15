@@ -37,11 +37,11 @@ pro box_centroider, input_image, sigma2, xmax, ymax, halfboxwidth, $
 ;    Y0: double scalar Y position of centroid
 ;    F0: double scalar flux of source as summed in box after background removal
 ;    B: double scalar background level
-;    XS: double scalar uncertainty in X centroid position
-;    YS: double scalar uncertainty in Y centroid position
-;    FS: double scalar uncertainty in measured flux accounting for uncertainty 
+;    XS: double scalar variance in X centroid position
+;    YS: double scalar variance in Y centroid position
+;    FS: double scalar variance in measured flux accounting for variance 
 ;        in background
-;    BS: double scalar uncertainty in background
+;    BS: double scalar variance in background
 ;    C: fixed scalar number of good pixels in aperture
 ;    CB: fixed scalar number of good pixels in background aperture
 ;    NP: fixed scalar number of noise pixels
@@ -102,6 +102,9 @@ pro box_centroider, input_image, sigma2, xmax, ymax, halfboxwidth, $
 ;    only provided for reference and sanity checking.
 ;
 ; HISTORY:
+;    Changed background aperture indexing so as not to double-count the corners 27 Jul 2018 JGI
+;    Changed documentation labeling XS,YS,FS,BS erroneously as uncertainties.  
+;        (They are variances.)   06 Feb 18 JGI
 ;    Added correct np output for the case where 50% of pixels in source aperture are bad  10 jul 14 JK
 ;    Changed shape of background aperture to be square 6 May JK
 ;    Added keyword /TWOPASS to find the pixel that holds the centroid - 
@@ -166,9 +169,9 @@ pro box_centroider, input_image, sigma2, xmax, ymax, halfboxwidth, $
 	if (bcount gt 0) then mask[bptr] = -1
 	bptr = where(xx le xbmax and xx ge xbmin and yy le ybmax and yy ge yamin, bcount)
 	if (bcount gt 0) then mask[bptr] = -1
-	bptr = where(yy le yamax and yy ge yamin and xx le xbmax and xx ge xamin, bcount)
+	bptr = where(yy le yamax and yy ge yamin and xx le xbmin and xx ge xamax, bcount)
 	if (bcount gt 0) then mask[bptr] = -1
-	bptr = where(yy le ybmax and yy ge ybmin and xx le xbmax and xx ge xamin, bcount)
+	bptr = where(yy le ybmax and yy ge ybmin and xx le xbmin and xx ge xamax, bcount)
 	if (bcount gt 0) then mask[bptr] = -1
 ; 
 
@@ -214,17 +217,17 @@ pro box_centroider, input_image, sigma2, xmax, ymax, halfboxwidth, $
 		fluxsum = total(image[gptr])
 		flux2sum = total(image[gptr] * image[gptr])
 		fluxsum2 = fluxsum * fluxsum
-		x0 = total(xx[gptr] * float(image[gptr])) / fluxsum
-		y0 = total(yy[gptr] * float(image[gptr])) / fluxsum
+		x0 = total(xx[gptr] * DOUBLE(image[gptr])) / fluxsum
+		y0 = total(yy[gptr] * DOUBLE(image[gptr])) / fluxsum
 		f0 = fluxsum   ;; Added 13 Aug 2013 JGI
 ; Now calculate the variance 
 ; note for normal distributions, fwhm = 2*sqrt(2 * ln 2) sigma ~ 2.35482 sigma
 		dx = xx[gptr] - x0
 		dy = yy[gptr] - y0
-		xfwhm = total(dx * dx * float(image[gptr])) / fluxsum
-		yfwhm = total(dy * dy * float(image[gptr])) / fluxsum
+		xfwhm = total(dx * dx * DOUBLE(image[gptr])) / fluxsum
+		yfwhm = total(dy * dy * DOUBLE(image[gptr])) / fluxsum
 ; Added covariance 09 Aug 2013 JGI
-		xycov = total(dx * dy * float(image[gptr])) / fluxsum
+		xycov = total(dx * dy * DOUBLE(image[gptr])) / fluxsum
 		sigscale = 2.D * sqrt(2.D * alog(2.D))
 		xfwhm = sigscale * sqrt(xfwhm)
 		yfwhm = sigscale * sqrt(yfwhm)
@@ -239,8 +242,8 @@ pro box_centroider, input_image, sigma2, xmax, ymax, halfboxwidth, $
 		np = fluxsum2 / flux2sum
 
 ; Number of pixels in source and background regions
-		c = float(gcount)
-		cb = float(bcount)
+		c = DOUBLE(gcount)
+		cb = DOUBLE(bcount)
 		
 ; If a bad pixel exists in the source aperture return a flux of NaN.
 		xptr = where(mask eq 1 and image ne image, xcount)
@@ -270,7 +273,7 @@ pro box_centroider, input_image, sigma2, xmax, ymax, halfboxwidth, $
 		xfwhm = !VALUES.D_NAN
 		yfwhm = !VALUES.D_NAN
 		xycov = !VALUES.D_NAN
-                np = !VALUES.D_NAN
+    np = !VALUES.D_NAN
 	endelse
 
 return

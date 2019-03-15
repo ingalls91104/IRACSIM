@@ -12,7 +12,7 @@ PRO ETE_LIMB,theta_phase,z,p,limb_darkening,lambda_star,itransit
 ;;
 ;;       LIMB_DARKENING = The set of stellar limb darkening coefficients to use to compute the transit profile.
 ;;                           See Claret (2000) for a description of the model, and Mandel & Agol (2002) for the
-;;                           implications for transit profiles.
+;;                           implications for transit profiles.  Program expects the 4 nonlinear coeficients.
 ;;  OUTPUTS:
 ;;          LAMBDA_STAR = Amount of total stellar flux that is obscured by the planet, as a function of THETA_PHASE
 ;;          ITRANSIT = index of THETA_PHASE array during which planet is in full transit (!null if no transit)
@@ -161,7 +161,10 @@ PRO exoplanet_transit_eclipse,theta_phase,ar_semimaj,r,rp_rstar,inclination,star
   ;;   OPTIONAL KEYWORDS  
   ;;          LIMB_DARKENING = The set of stellar limb darkening coefficients to use to compute the transit profile.
   ;;                           See Claret (2000) for a description of the model, and Mandel & Agol (2002) for the
-  ;;                           implications for transit profiles.
+  ;;                           implications for transit profiles.  Expects the 4 nonlinear coefficients, but if two
+  ;;                           coefficients are given, then assume the quadratic model, and convert:  
+  ;;                                 Given quadratic components, (b1,b2) these translate to 4-component nonlinear 
+  ;;                                 set (0,b1+2*b2,0,-b2)
   ;;
   ;;   OUTPUTS:
   ;;          STAR_FRAC   = Flux of star as a function of THETA_PHASE, relative to unobstructed stellar flux
@@ -190,6 +193,8 @@ PRO exoplanet_transit_eclipse,theta_phase,ar_semimaj,r,rp_rstar,inclination,star
   lambda_2 = (kappa_1 + p^2*kappa_2 - 0.5*SQRT( 4*z^2 - (1 + z^2 - p^2)^2 ))/!dpi
 
   ;;;; TRANSIT
+  IF N_ELEMENTS(LIMB_DARKENING) EQ 2 THEN LIMB_DARKENING = [0,limb_darkening[0] + 2d*limb_darkening[1],0,-limb_darkening[1]] ; Convert from quadratic to
+                                                                                                                             ; 4-parameter
   IF N_ELEMENTS(LIMB_DARKENING) EQ 4 THEN BEGIN   ;;; Get the shape of the transit with limb darkening
      ETE_LIMB,theta_phase,z,p,limb_darkening,lambda_star,itransit 
   ENDIF ELSE BEGIN  ;; Get the shape of the transit without limb darkening (pure geometrical)

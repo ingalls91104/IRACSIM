@@ -21,10 +21,10 @@ c = 2.99792458d10
 
 Lambda_eff = HASH('U',0.36,'B',0.44,'V',0.55,'R',0.71,'I',0.97,'J',1.25,'H',1.60,'K',2.22,'L',3.54,'M',4.80,'N',10.6,'O',21.0,$
                   'J2MASS',1.235,'H2MASS',1.662,'Ks2MASS',2.159,'IRAC3.6',3.5612,'IRAC4.5',4.5095,'IRAC5.7',5.6895,'IRAC8.0',7.9584,$
-                   'g',0.52,'r',0.67,'i',0.79,'z',0.91)  ;;  microns
+                   'g',0.52,'r',0.67,'i',0.79,'z',0.91,'WISE1',3.4,'WISE2',4.6,'WISE3',12.,'WISE4',22.)  ;;  microns
 zeropt = HASH('U',1823d3,'B',4130d3,'V',3781d3,'R',2941d3,'I',2635d3,'J',1603d3,'H',1075d3,'K',667d3,'L',288d3,'M',170d3,'N',36d3,'O',9.4d3,$
               'J2MASS',1594d3,'H2MASS',1024d3,'Ks2MASS',666.7d3,'IRAC3.6',278d3,'IRAC4.5',180d3,'IRAC5.7',117d3,'IRAC8.0',63.1d3,$
-              'g',3730d3,'r',4490d3,'i',4760d3,'z',4810d3)  ;; mJy
+              'g',3730d3,'r',4490d3,'i',4760d3,'z',4810d3,'WISE1',309.54d3,'WISE2',171.79d3,'WISE3',31.676d3,'WISE4',8.3635d3)  ;; mJy
               
 IF ~lambda_eff.HasKey(magsystemfrom) THEN BEGIN
    PRINT,'MAGNITUDE_FLUX: No information on magnitude system '+magstystemfrom+'.  Returning.'
